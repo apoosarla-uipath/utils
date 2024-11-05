@@ -8,8 +8,9 @@ import base64
 
 # when fetching report for "as" lower_environment is always "as"
 lower_environment = 'alpha'
-higher_environment = 'prod'
-github_connector_teams_jmespath = '"#is-hydra-team"'
+higher_environment = 'staging'
+team_name = "#is-hydra-team"
+github_connector_teams_jmespath = "team"
 
 regions = {
     "alpha": "https://api.es-uswest-alpha-0.aws-uswa.cloudelements.app/v3/element/elements",
@@ -123,16 +124,17 @@ def as_compare_environments(higher_environment_name):
     return lower_higher_differences
 
 def get_team_wise_connectors_json():
-    url = 'https://api.github.com/repos/cloud-elements/spartacus2.0/contents/circleci/teamWiseConnectors.json'
+    url = 'https://api.github.com/repos/cloud-elements/spartacus2.0/contents/spartacus/src/scripts/connectors_team_mappings.json'
+    
     response = requests.get(url, headers=headers)
-    file_name = 'teamWiseConnectors.json'
+    file_name = 'connectors_team_mappings.json'
 
     if response.status_code == 200:
         # Decode the base64 string
         decoded_bytes = base64.b64decode(jmespath.search('content',response.json()))
         # Convert bytes to string
         decoded_content = decoded_bytes.decode('utf-8')
-        json_data = jmespath.search(github_connector_teams_jmespath, json.loads(decoded_content))
+        json_data = extract_team_info(json.loads(decoded_content))
         # Write the JSON data to a file
         with open(file_name, 'w') as json_file:
             json.dump(json_data, json_file, indent=4)
@@ -142,6 +144,54 @@ def get_team_wise_connectors_json():
         print(response.text)
         sys.exit()
     return read_json_file(file_name)
+
+
+# Function to extract object for a given team
+def extract_team_info(data):
+    result = []
+    for key, value in data.items():
+        if isinstance(value, dict):  # Check if the value is a dictionary
+            # Execute JMESPath query on each dictionary
+            team = jmespath.search(github_connector_teams_jmespath, value)
+            if team == team_name:
+                result.append(key)  # Append the first matched result
+    return result
+
+
+def delete_files_in_folder(folder_path):
+    try:
+        # Iterate through the files in the specified folder
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            # Check if it's a file (not a directory)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+    except Exception as e:
+        print(f'Error: {e}')
+    print("Completed cleaning the output folder")
+
+delete_files_in_folder("output/")
+
+# result = get_team_wise_connectors_json(data, team_name)
+
+def github_authenticate():
+    token = os.environ.get('GITHUB_TOKEN')
+    url = 'https://api.github.com/user'
+
+    headers = {
+        'Authorization': f'Bearer {token}'
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        print("Autheticated Successfully")
+    else:
+        print(f"Error: {response}")
+        sys.exit()
+
+
+github_authenticate()
 
 matching_values = get_team_wise_connectors_json()
 

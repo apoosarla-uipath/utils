@@ -1,1 +1,4 @@
 tmp/
+connector-diffs/output/
+connector-diffs/connectors_team_mappings.json
+connector-diffs/connector-details-*.json
