@@ -7,9 +7,14 @@ import sys
 import base64
 
 # when fetching report for "as" lower_environment is always "as"
-lower_environment = 'alpha'
-higher_environment = 'staging'
-team_name = "#is-hydra-team"
+# lower_environment = 'alpha'
+# igher_environment = 'staging'
+ 
+lower_environment = 'staging'
+higher_environment = 'prod'
+
+team_name = '#is-hydra-team-notifications'
+#team_name = "#is-neo-team"
 github_connector_teams_jmespath = "team"
 
 regions = {
@@ -61,16 +66,35 @@ def get_changes_file(key, lower_env_ver, higher_env_var):
     if response.status_code == 200:
         json_data = jmespath.search(github_commit_resp_jmespath, response.json())
 
-        # Write the JSON data to a file
+
+        filtered_result = filter_json_array(json_data)
+
+        # if excluded_rows:
+        #     print(f"Excluded {len(excluded_rows)} rows:")
+        #     for row in excluded_rows:
+        #         print(f"- {row}")
+        # else:
+        #     print("No rows were excluded.")
+
+        # print("\nFiltered JSON Array:", json.dumps(filtered_result, indent=2))
+
+        # Write the filtered JSON data to a file
         with open('output/'+file_name, 'w') as json_file:
-            json.dump(json_data, json_file, indent=4)
+            json.dump(filtered_result, json_file, indent=4)
         print(f"Completed processing connector: {key}")
     else:
         print(f"Error: {response.status_code}, key: {key}")
         # print(response.text)
-    return file_name
+    return file_name, (len(filtered_result) == 0)
     
-
+def filter_json_array(json_array):
+    filtered_array = []
+    
+    for item in json_array:
+        if "locale changes" not in item.lower():
+            filtered_array.append(item)
+    
+    return filtered_array
 
 def compare_environments(lower_environment_name, higher_environment_name):
     if(lower_environment_name == 'as'):
@@ -89,14 +113,15 @@ def compare_environments(lower_environment_name, higher_environment_name):
             if lower_env_key == higher_environment['key']:
                 # Check if latestVersion or hasHttpRequest are different
                 if lower_env_ver != higher_env_var or lower_environment['hasHttpRequest'] != higher_environment['hasHttpRequest']:
-                    changes_file = get_changes_file(lower_env_key, lower_env_ver, higher_env_var)
+                    changes_file, only_loc_changes = get_changes_file(lower_env_key, lower_env_ver, higher_env_var)
                     lower_higher_differences.append({
                         'key': lower_env_key,
                         lower_environment_name + '-version': lower_env_ver,
-                        lower_environment_name + '-hasHttpRequest': lower_environment['hasHttpRequest'],
+                        # lower_environment_name + '-hasHttpRequest': lower_environment['hasHttpRequest'],
                         higher_environment_name + '-version': higher_env_var,
-                        higher_environment_name + '-hasHttpRequest': higher_environment['hasHttpRequest'],
-                        'changes' : f'<a href="{changes_file}">{changes_file}</a>'
+                        # higher_environment_name + '-hasHttpRequest': higher_environment['hasHttpRequest'],
+                        'changes' : f'<a href="{changes_file}">{changes_file}</a>',
+                        'onlyLocalizationChanges' : only_loc_changes
                     })
     return lower_higher_differences
 
